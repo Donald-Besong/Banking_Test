@@ -1,0 +1,218 @@
+import iterdata
+import dataanalysis
+import main_argparser
+import argparse
+from datetime import datetime, date
+from itertools import tee
+import pandas as pd
+
+#*****************begin reading arguments
+data_source = main_argparser.data_source
+risk_rating = main_argparser.risk_rating
+cutoff_date_glob = main_argparser.cutoff_date
+dob_filter_glob = main_argparser.dob_filter
+fee_str = main_argparser.fee_str
+fullMessage = main_argparser.fullMessage   
+#*****************end reading arguments
+
+x = iterdata.IterData(data_source)
+x.iterRead()
+dataSet1 = x._dataSet1
+dataSet2 = x._dataSet2
+trnsData = x._trnsData
+feeTypeMapping = x._feeTypeMapping
+
+message = "hello there"
+dataSet1Rows = dataSet1.rows
+dataSet2Rows = dataSet2.rows
+trnsDataRows = trnsData.rows
+feeTypeMappingRows = feeTypeMapping.rows
+	
+def get_length(x):
+	i = 0
+	row_data = next(x, None)
+	while row_data:
+		row = [cell.value for cell in row_data]
+		if not row[0] and row[0] != 0:
+			return(i)
+		row_data = next(x, None)
+		i += 1
+	return(i)
+	
+def analyse(x):
+	i = 0
+	row_data = next(x, None)
+	while row_data:
+		row = [cell.value for cell in row_data]
+		if not row[0]:
+			return 
+		print(i)
+		print(row)
+		row_data = next(x, None)
+		i += 1
+		
+dataSet2Rows_glob, dataSet2Rows_d = tee(dataSet2Rows)
+d = get_length(dataSet2Rows_d)
+
+dataSet1Rows_glob, dataSet1Rows_d = tee(dataSet1Rows)
+d1 = get_length(dataSet1Rows_d)	
+
+dataTurns_glob, dataTurns_d = tee(trnsDataRows)
+d_turns = get_length(dataTurns_d)
+
+feeType_glob, feeType_d = tee(feeTypeMappingRows)
+d_feeType = get_length(feeType_d)
+
+
+			
+def dataPreDataSet2():
+	i = 0
+	x2 = iterdata.IterData(data_source)
+	x2.iterRead()
+	dataSet2_firstCopy = x2._dataSet2
+	dataSet2Rows_firstCopy = dataSet2_firstCopy.rows
+	row_data = next(dataSet2Rows_firstCopy, None)
+	missing = []
+	non_date = []
+	
+	missing_txt = open("missing.txt", "w")
+	non_date_txt = open("non_date.txt", "w")
+	while i < d:
+		row = [cell.value for cell in row_data]
+		row_str = [str(cell.value) for cell in row_data]
+		if not row[0] or not row[1] or not row[2]:
+			missing.append((i,row))
+			txt = ",".join((",".join(row_str), str(i)))
+			if i > 0:
+				missing_txt.write(txt + "\n")
+		if not isinstance(row[2], date):
+			non_date.append((i,row))
+			txt = ",".join((",".join(row_str), str(i)))
+			if i > 0:
+				non_date_txt.write(txt + "\n")
+		row_data = next(dataSet2Rows_firstCopy, None) 
+		i += 1
+	missing_txt.close()
+	non_date_txt.close()
+	return missing
+		
+def riskReviewDate(): 
+	final_data = []
+	id_list = []
+	x3 = iterdata.IterData(data_source)
+	x3.iterRead()
+	dataSet2_thirdCopy = x3._dataSet2
+	dataSet2Rows_thirdCopy = dataSet2_thirdCopy.rows
+	row_data = next(dataSet2Rows_thirdCopy, None)
+	row = [cell.value for cell in row_data]
+	cutoff_date = datetime.strptime(cutoff_date_glob, "%d/%m/%Y")
+	print("risk_rating = %s, date_assessed= %s" % (risk_rating, cutoff_date))
+	for i in range(d):
+		if not row[0] or not row[1] or not row[2]:
+			continue
+		 	
+		if i > 0:
+			candidate_date = row[2] 
+			if cutoff_date > candidate_date and row[1].lower() == risk_rating.lower():
+				print("i = %s;, risk = %s; date = %s; cut_off= %s" % (i,row[1],type(candidate_date), type(cutoff_date)))
+				id_list.append(row[0])
+		        
+		row_data = next(dataSet2Rows_thirdCopy, None) 
+		row = [cell.value for cell in row_data]
+	print(id_list)
+
+def dataPreDataSet1():
+	i = 0
+	x1 = iterdata.IterData(data_source)
+	x1.iterRead()
+	dataSet1_firstCopy = x1._dataSet1
+	dataSet1Rows_firstCopy = dataSet1_firstCopy.rows
+	row_data = next(dataSet1Rows_firstCopy, None)
+	missing = []
+	non_date = []
+	
+	missing1_txt = open("missing.txt", "w")
+	non_date1_txt = open("non_date.txt", "w")
+	while i < d1:
+		row = [cell.value for cell in row_data]
+		row_str = [str(cell.value) for cell in row_data]
+		if not row[0] or not row[1]:
+			missing.append((i,row))
+			txt = ",".join((",".join(row_str), str(i)))
+			if i > 0:
+				missing1_txt.write(txt + "\n")
+		if not isinstance(row[1], date):
+			non_date.append((i,row))
+			txt = ",".join((",".join(row_str), str(i)))
+			if i > 0:
+				non_date1_txt.write(txt + "\n")
+		row_data = next(dataSet1Rows_firstCopy, None) 
+		i += 1
+	missing1_txt.close()
+	non_date1_txt.close()
+	return missing	
+
+def overDraft(): 
+		
+	dob_filter = datetime.strptime(dob_filter_glob, "%d/%m/%Y")
+	today = datetime.strptime('05/12/2021', "%d/%m/%Y")
+	print(dob_filter)
+	print("fee descr string = %s, dob = %s" % (fee_str, dob_filter))
+	id_list = []
+	x1 = iterdata.IterData(data_source)
+	x1.iterRead()
+	
+	dataSet1_thirdCopy = x1._dataSet1
+	dataSet1Rows_thirdCopy = dataSet1_thirdCopy.rows
+	row_data = next(dataSet1Rows_thirdCopy, None)
+	row = [cell.value for cell in row_data]
+	#for k in range(1, d1):
+	#dataSet1Rows_thirdCopy
+	
+	trnsData_thirdCopy = x1._trnsData
+	trnsDataRows_thirdCopy = trnsData_thirdCopy.rows
+	trns_row_data = next(trnsDataRows_thirdCopy, None)
+	trns_row = [cell.value for cell in trns_row_data]
+	#for i in range(1, d_turns):
+		
+	
+	feeTypeMapping_thirdCopy = x1._feeTypeMapping
+	feeTypeMappingRows_thirdCopy = feeTypeMapping_thirdCopy.rows
+	fee_row_data = next(feeTypeMappingRows_thirdCopy, None)
+	fee_row = [cell.value for cell in fee_row_data]
+	fee_list = []
+	#for i in range(1, d_feeType):
+	print(row)
+	print(trns_row)
+	print(fee_row)
+	print(d)
+	print(d1)
+	print(d_turns)
+	print(d_feeType)
+	
+	#dataSet1_df
+	
+	
+	 
+	
+
+			
+	    
+if __name__ == '__main__':
+	#print(dataPreDataSet2())
+	#riskReviewDate()
+	overDraft()
+	#print(dataPreDataSet1())
+	if fullMessage > 0:
+		print('Hi and %s from a row' % message)
+		print('***The of data2 length is %s ***' % d)
+		print('***The of data1 length is %s ***' % d1)
+		print('***The of turns length is %s ***' % d_turns)
+		print('***The of fee mapping length is %s ***' % d_feeType)
+		print("End")
+
+    
+
+
+
+
